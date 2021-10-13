@@ -1,0 +1,85 @@
+CREATE OR REPLACE FUNCTION MM.MM_GET_CNTSTK_AS_ON (
+   P_CLD_ID       VARCHAR2,
+   P_SLOC_ID      NUMBER,
+   P_ORG_ID       VARCHAR2,
+   P_WH_ID        VARCHAR2,
+   P_ITM_ID       VARCHAR2,
+   P_FY_ID        NUMBER,
+   P_AS_ON_DATE   DATE)
+RETURN NUMBER IS
+   V_FIN_ST_DT   DATE;
+   V_OP_STK      NUMBER (26, 6);
+   V_RCPT_QTY    NUMBER (26, 6);
+   V_ISSU_QTY    NUMBER (26, 6);
+BEGIN
+   V_FIN_ST_DT := APP.FN_GET_FY_START_DATE(P_CLD_ID, P_ORG_ID, trunc(P_AS_ON_DATE), 'FY');
+   BEGIN
+     SELECT NVL (SUM (b.CNT_QTY), 0) RCPT_QTY
+     INTO V_RCPT_QTY
+     FROM MM$MTL$RCPT A, MM$MTL$RCPT$SR B
+     WHERE A.CLD_ID = P_CLD_ID
+     AND A.SLOC_ID = P_SLOC_ID
+     AND A.ORG_ID = P_ORG_ID
+     AND A.FY_ID = P_FY_ID
+     AND TRUNC(A.RCPT_DT) BETWEEN  V_FIN_ST_DT  AND P_AS_ON_DATE
+     AND A.WH_ID = P_WH_ID
+     AND A.CLD_ID = B.CLD_ID
+     AND A.SLOC_ID = B.SLOC_ID
+     AND A.ORG_ID = B.ORG_ID
+     AND A.WH_ID = B.WH_ID
+     AND A.DOC_ID = B.DOC_ID
+     AND B.ITM_ID = P_ITM_ID
+
+     AND A.RCPT_STAT IN (383, 384)
+     AND A.RCPT_SRC_TYPE <> 396;
+   EXCEPTION
+      WHEN NO_DATA_FOUND THEN
+         V_RCPT_QTY := 0;
+   END;
+
+--  DBMS_OUTPUT.PUT_LINE(V_RCPT_QTY);
+--  DBMS_OUTPUT.PUT_LINE('123'||V_FIN_ST_DT);
+
+   BEGIN
+     SELECT NVL (SUM (b.CNT_QTY), 0) ISSU_QTY
+     INTO V_ISSU_QTY
+     FROM MM$MTL$ISSU A, MM$MTL$ISSU$sr B
+     WHERE A.CLD_ID = P_CLD_ID
+     AND A.SLOC_ID = P_SLOC_ID
+     AND A.ORG_ID = P_ORG_ID
+     AND A.FY_ID = P_FY_ID
+     AND TRUNC(A.ISSU_DT) BETWEEN  V_FIN_ST_DT  AND P_AS_ON_DATE
+     AND B.WH_ID = P_WH_ID
+     AND A.CLD_ID = B.CLD_ID
+     AND A.SLOC_ID = B.SLOC_ID
+     AND A.ORG_ID = B.ORG_ID
+     AND A.WH_ID = B.WH_ID
+     AND A.DOC_ID = B.DOC_ID
+     AND B.ITM_ID = P_ITM_ID;
+   EXCEPTION
+      WHEN NO_DATA_FOUND  THEN
+         V_ISSU_QTY := 0;
+   END;
+
+ DBMS_OUTPUT.PUT_LINE(V_ISSU_QTY);
+
+     BEGIN
+      SELECT sum(a.op_cnt_qty)
+        INTO v_op_stk
+        FROM mm$stk$summ$itm a
+       WHERE a.cld_id = P_CLD_ID
+         AND a.sloc_id = P_SLOC_ID
+         AND a.org_id = P_ORG_ID
+         AND a.fy_id = P_FY_ID
+         AND a.wh_id = P_WH_ID
+         AND a.itm_id = P_ITM_ID;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         v_op_stk := 0;
+   END;
+--   DBMS_OUTPUT.PUT_LINE(v_op_stk);
+   RETURN (V_OP_STK + V_RCPT_QTY - V_ISSU_QTY);
+--   RETURN (V_RCPT_QTY - V_ISSU_QTY);
+END;
+/
